@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+import time
+import roslib; roslib.load_manifest('ur_driver')
+import rospy
+import actionlib
+from std_msgs.msg import String
+from sensor_msgs.msg import JointState
+from control_msgs.msg import *
+from trajectory_msgs.msg import *
+from key_publisher import *
+from lab3functions import *
+global press_key
+press_key = "0"
+def callback(msg):
+    global press_key
+    press_key = msg.data
+if __name__ == '__main__':
+
+    rospy.init_node("keyboard_gazebo", disable_signals=True)
+    robot_client = actionlib.SimpleActionClient('follow_joint_trajectory',FollowJointTrajectoryAction)
+    print "Waiting for server..."
+    robot_client.wait_for_server()
+    print "Connected to server"
+    joint_names = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint',
+    'wrist_2_joint', 'wrist_3_joint']
+    Q0 = [0.0, -1.0, 1.7, -2.2, -1.6, 0.0]
+    g = FollowJointTrajectoryGoal()
+    g.trajectory = JointTrajectory()
+    g.trajectory.joint_names = joint_names
+
+    # Initial position
+    g.trajectory.points = [ JointTrajectoryPoint(positions=Q0,velocities=[0]*6,time_from_start=rospy.Duration(2.0))]
+    robot_client.send_goal(g)
+    robot_client.wait_for_result()
+    rospy.sleep(2)
+    rate = rospy.Rate(5)
+    pub = rospy.Publisher('joint_states', JointState, queue_size=1000)
+    rospy.Subscriber("/keys", String, callback)
+    jstate = JointState()
+    jstate.name = joint_names
+    jstate.header.stamp = rospy.Time.now()
+    jstate.position = Q0
+
+    while not rospy.is_shutdown():
+        robot_client.cancel_goal()
+    # Modification of the motion
+        if press_key== "q" :
+            Q0[0] = Q0[0]+0.05;
+        elif press_key =="w":
+            Q0[1] = Q0[1]+0.05;
+        elif press_key =="e":
+            Q0[2] = Q0[2]+0.05;
+        elif press_key =="r":
+            Q0[3] = Q0[3]+0.05;
+        elif press_key =="t":
+            Q0[4] = Q0[4]+0.05;
+        elif press_key =="y":
+            Q0[5] = Q0[5]+0.05;
+        elif press_key=="a":
+            Q0[0] = Q0[0]-0.05;
+        elif press_key =="s":
+            Q0[1] = Q0[1]-0.05;
+        elif press_key =="d":
+            Q0[2] = Q0[2]-0.05;
+        elif press_key =="f":
+            Q0[3] = Q0[3]-0.05;
+        elif press_key =="g":
+            Q0[4] = Q0[4]-0.05;
+        elif press_key =="h":
+            Q0[5] = Q0[5]-0.05;
+        print press_key
+        g.trajectory.points = [ JointTrajectoryPoint(positions=Q0, velocities=[0]*6,
+        time_from_start=rospy.Duration(0.05))]
+        robot_client.send_goal(g)
+        robot_client.wait_for_result()
+        jstate = JointState()
+        jstate.name = joint_names
+        jstate.header.stamp = rospy.Time.now()
+        jstate.position = Q0
+        pub.publish(jstate)
+        rate.sleep()
+        robot_client.cancel_goal()
