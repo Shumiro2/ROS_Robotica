@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+
+import rospy
+from sensor_msgs.msg import JointState
+from markers import *
+from functions import *
+
+# Initialize the node
+rospy.init_node("testKineControlPosition")
+print('starting motion ... ')
+# Publisher: publish to the joint_states topic
+pub = rospy.Publisher('joint_states', JointState,queue_size=10)
+bmarker_current = BallMarker(color['GREEN'])
+bmarker_desired = BallMarker(color['RED'])
+# Joint names
+jnames = ['right_j0', 'right_j1', 'right_j2', 'right_j3',
+'right_j4', 'right_j5', 'right_j6', 'head_pan']
+# Desired position
+xd = np.array([0.7, 0.7, 0.3])
+# Initial configuration
+q0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+# Resulting initial position (end effector with respect to the base link)
+T = fkine_sawyer(q0)
+print(T)
+x0 = T[0:3, 3]
+bmarker_current.xyz(x0)
+# Green marker shows the desired position
+bmarker_desired.xyz(xd)
+# Instance of the JointState message
+jstate = JointState()
+# Values of the message
+jstate.header.stamp = rospy.Time.now()
+jstate.name = jnames
+# Add the head joint value (with value 0) to the joints
+jstate.position = q0
+# Frequency (in Hz) and control period
+freq = 200
+dt = 1.0/freq
+rate = rospy.Rate(freq)
+# Initial joint configuration
+q = copy(q0)
+# Main loop
+k = 0.5
+while not rospy.is_shutdown():
+    # Current time (needed for ROS)
+    jstate.header.stamp = rospy.Time.now()
+    # Kinematic control law for position (complete here)
+    # -----------------------------
+    T = fkine_sawyer(q)
+    x = T[0:3, 3]
+    e = x - xd
+    ep = -k*e
+    J = jacobian_sawyer(q)
+    qp = np.linalg.pinv(J).dot(ep)
+    q = q + dt*qp
+    if(np.linalg.norm(e) < 0.001):
+        k = 0
+    jstate.position = q
+    pub.publish(jstate)
+    bmarker_desired.xyz(xd)
+    bmarker_current.xyz(x)
+    # Wait for the next iteration
+    rate.sleep()
+print('ending motion ...')
