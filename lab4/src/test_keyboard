@@ -2,26 +2,112 @@
 
 import rospy
 from std_msgs.msg import String
+from sensor_msgs.msg import JointState
+from markers import *
+from lab4functions import *
 
 global press_key
 press_key = "0"
+
 
 def callback(msg):
 
     global press_key
     press_key = msg.data
 
+
 if __name__ == '__main__':
-
-    rospy.init_node("testKeyboard")
-
+    rospy.init_node("testKeyboard_ikine")
     rospy.Subscriber("/keys", String, callback)
-
+    # Publica los JointState en el topico joint_states
+    pub = rospy.Publisher('joint_states', JointState, queue_size=1000)
+    bmarker = BallMarker(color['RED'])
+    bmarker_des = BallMarker(color['GREEN'])
+    alcanzado_max_z = (89.2+425+392+94.75)/100
+    alcanzado_max_xy = (425+392+94.75)/100
+    alcanzado_max = [alcanzado_max_xy, alcanzado_max_z]
+    # Joint names
+    jnames = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
+              'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+    # Desired position
+    xd = np.array([0.1, 0.0, 0.1])
+    # Initial configuration
+    q0 = np.array([0.0, -1.0, 0.7, -1.2, -0.6, 0.0])
+    # Inverse kinematics -> obtiene el valor de q necesario para llegar ala posicion deseada
+    q = ikine_ur5(xd, q0)  # usando metodo de Newton
+    # q = ik_gradient_ur5(xd, q0) #usando metodo de la gradiente
+    # Se obtiene la nueva Matriz Homogenea en base al nuevo q -> (0-T-xdes)
+    # Resulting position (end effector with respect to the base link)
+    T = fkine_ur5(q)
+    print('Obtained value:\n', np.round(T, 3))
+    # Red marker shows the achieved position
+    bmarker.xyz(T[0:3, 3])
+    # Green marker shows the desired position
+    bmarker_des.xyz(xd)
+    # Objeto (mensaje) de tipo JointState
+    jstate = JointState()
+    # Asignar valores al mensaje
+    jstate.header.stamp = rospy.Time.now()
+    jstate.name = jnames
+    # Add the head joint value (with value 0) to the joints
+    jstate.position = q
     # Loop rate (in Hz)
     rate = rospy.Rate(10)
     # Continuous execution loop
     while not rospy.is_shutdown():
+        # z: arriba(w) y abajo(s)
+        if (press_key == "w"):
+            if (xd[2] < alcanzado_max[1]):
+                xd[2] = xd[2]+0.1
+        # else: pass
+        elif (press_key == "s"):
+            if (xd[2] > -alcanzado_max[1]):
+                xd[2] = xd[2]-0.1
+        # else: pass
+        # y: derecha(d) y izquierda(a)
+        elif (press_key == "d"):
+            if (xd[1] < alcanzado_max[0]):
+                xd[1] = xd[1]+0.1
+        # else: pass
+        elif (press_key == "a"):
+            if (xd[1] > -alcanzado_max[0]):
+                xd[1] = xd[1]-0.1
+        # else: pass
+        # x: adelante(q) y atras(e)
+        elif (press_key == "q"):
+            if (xd[0] < alcanzado_max[0]):
+                xd[0] = xd[0]+0.1
+        # else: pass
+        elif (press_key == "e"):
+            if (xd[0] > -alcanzado_max[0]):
+                xd[0] = xd[0]-0.1
+        # else: pass
         # Show the axes and buttons
         print 'keys:', press_key
+        # Inverse kinematics -> obtiene el valor de q necesario para llegar a la posicion deseada
+
+        q = ikine_ur5(xd, q0)  # usando metodo de Newton
+        # q = ik_gradient_ur5(xd, q0) #usando metodo de la gradiente
+        # Se obtiene la nueva Matriz Homogenea en base al nuevo q -> (0-T-xdes)
+        # Resulting position (end effector with respect to the base link)
+
+        T = fkine_ur5(q)
+
+        print('Obtained value:\n', np.round(T, 3))
+        # Red marker shows the achieved position
+        bmarker.xyz(T[0:3, 3])
+        # Green marker shows the desired position
+        bmarker_des.xyz(xd)
+        # Objeto (mensaje) de tipo JointState
+        jstate = JointState()
+        # Asignar valores al mensaje
+        jstate.header.stamp = rospy.Time.now()
+        jstate.name = jnames
+        # Add the head joint value (with value 0) to the joints
+        jstate.position = q
+        # Publicando el estado de las articulaciones del robot y las posiciones de las bolas roja y verde
+        pub.publish(jstate)
+        bmarker.publish()
+        bmarker_des.publish()
         # Wait for the next iteration
         rate.sleep()

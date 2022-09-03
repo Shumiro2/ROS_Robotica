@@ -5,42 +5,90 @@ import rospy
 import actionlib
 from control_msgs.msg import *
 from trajectory_msgs.msg import *
+from lab4functions import *
+from std_msgs.msg import String
+
+global press_key
+press_key = "0"
+def callback(msg):
+    global press_key
+    press_key = msg.data
 
 
 if __name__ == '__main__':
     
-    rospy.init_node("test1", disable_signals=True)
-
-    robot_client = actionlib.SimpleActionClient('follow_joint_trajectory', FollowJointTrajectoryAction)
-
+    rospy.init_node("keys_gazebo", disable_signals=True)
+    rospy.Subscriber("/keys", String, callback)
+    robot_client = actionlib.SimpleActionClient('follow_joint_trajectory',
+    FollowJointTrajectoryAction)
     print "Waiting for server..."
     robot_client.wait_for_server()
     print "Connected to server"
-
-    joint_names = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+    joint_names = ['shoulder_pan_joint', 'shoulder_lift_joint',
+    'elbow_joint', 'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
     Q0 = [0.0, -1.0, 1.7, -2.2, -1.6, 0.0]
-
+    #Posicion Deseada
+    T=fkine_ur5(Q0)
+    pos=T[0:3,3]
+    print('Obtained value:\n', np.round(T,3))
     g = FollowJointTrajectoryGoal()
     g.trajectory = JointTrajectory()
     g.trajectory.joint_names = joint_names
-
     # Initial position
-    g.trajectory.points = [ JointTrajectoryPoint(positions=Q0, velocities=[0]*6,time_from_start=rospy.Duration(2.0))]
+    g.trajectory.points = [ JointTrajectoryPoint(positions=Q0,velocities=[0]*6,time_from_start=rospy.Duration(2.0))]
     robot_client.send_goal(g)
     robot_client.wait_for_result()
     rospy.sleep(1)
-    
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():
         robot_client.cancel_goal()
+        posn=copy(pos)
+        Qn=copy(Q0)
+        if press_key=="q":
+            pos[0]=pos[0]+0.01
+        if press_key=="a":
+            pos[0]=pos[0]-0.01
+        if press_key=="w":
+            pos[1]=pos[1]+0.01
+        if press_key=="s":
+            pos[1]=pos[1]-0.01
+        if press_key=="e":
+            pos[2]=pos[2]+0.01
+        if press_key=="d":
+            pos[2]=pos[2]-0.01
 
+        Q0 =ikine_ur5(pos,Q0)
+
+        # Definicion de limites
+        val1=6.28; val2=3.14
+        lim=0
+        if Q0[0]>val1 or Q0[0]<-val1:
+            lim=1
+        if Q0[1]>val1 or Q0[1]<-val1:
+            lim=1
+        if Q0[2]>val2 or Q0[2]<-val2:
+            lim=1
+        if Q0[3]>val1 or Q0[3]<-val1:
+            lim=1
+        if Q0[4]>val1 or Q0[4]<-val1:
+            lim=1
+        if Q0[5]>val1 or Q0[5]<-val1:
+            lim=1
+
+        #Longitud maxima del espacio de trabajo del robot
+        rmax = 1.017
+        ractual = np.linalg.norm(pos)
+        if ractual >= rmax:
+            lim=1
+        if lim==1:
+            pos=copy(posn)
+            Q0=copy(Qn)
         # Modification of the motion
         Q0[0] = Q0[0]-0.005
-
-        g.trajectory.points = [ JointTrajectoryPoint(positions=Q0, velocities=[0]*6, time_from_start=rospy.Duration(0.008))]
+        print(pos)
+        g.trajectory.points = [ JointTrajectoryPoint(positions=Q0,velocities=[0]*6, time_from_start=rospy.Duration(0.008))]
         robot_client.send_goal(g)
         robot_client.wait_for_result()
-
         rate.sleep()
+        robot_client.cancel_goal()
 
-    robot_client.cancel_goal()
