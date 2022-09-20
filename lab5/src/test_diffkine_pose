@@ -15,7 +15,7 @@ print('starting motion ... ')
 # Publisher: publish to the joint_states topic
 pub = rospy.Publisher('joint_states', JointState, queue_size=1000)
 # Markers for the current and desired positions
-bmarker_current  = FrameMarker()
+bmarker_current = FrameMarker()
 bmarker_desired = FrameMarker(0.5)
 
 # Joint names
@@ -24,13 +24,13 @@ jnames = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
 
 # Desired pose
 ang = pi/3
-Rd = np.array([[0,1,0],[1,0,0],[0,0,-1]])
+Rd = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
 qd = rot2quat(Rd)
 # Find an xd that the robot can reach
 xd = np.array([0.4, 0.4, 0.4, qd[0], qd[1], qd[2], qd[3]])
 #xd  = np.array([0.5, 0.5, 0.6, np.cos(ang/2.0), 0, 0, np.sin(ang/2.0)])
 # Initial configuration
-q0  = np.array([0.0, -1.0, 1.7, -2.2, -1.6, 0.0])
+q0 = np.array([0.0, -1.0, 1.7, -2.2, -1.6, 0.0])
 
 # Resulting initial pose (end effector with respect to the base link)
 T = fkine(q0)
@@ -48,7 +48,7 @@ jstate.name = jnames
 # Add the head joint value (with value 0) to the joints
 jstate.position = q0
 
-# Frequency (in Hz) and control period 
+# Frequency (in Hz) and control period
 freq = 200
 dt = 1.0/freq
 rate = rospy.Rate(freq)
@@ -60,14 +60,26 @@ quat = x[3:7]
 # Initialize the derror vector (derivative of the error)
 derror = np.zeros(7)
 # Main loop
-#for i in range(1):
+# for i in range(1):
+k=0.5
 while not rospy.is_shutdown():
     # Current time (needed for ROS)
     jstate.header.stamp = rospy.Time.now()
     # Kinematic control law for the pose (complete here)
     # --------------------------------------------------
+    J = jacobian_pose(q)
+    invJ = np.linalg.pinv(J)
+    w = quat[0]
+    e = quat[1:4]
+    wd = qd[0]
+    ed = qd[1:4]
+    we = wd*w + ed.T.dot(e)
+    ee = -wd*e + w*ed - skew(ed).dot(e)
+    e = np.hstack([x[0:3]-xd[0:3],we-1, ee])
+    derror = -k*e
+    dq = invJ.dot(derror)
+    q = q + dt*dq
 
-    q = 
 
     # Current configuration trnaformation to current position
     T = fkine(q)

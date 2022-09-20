@@ -2,17 +2,21 @@
 import numpy as np
 from copy import copy
 
-cos = np.cos; sin = np.sin; pi = np.pi
+cos = np.cos
+sin = np.sin
+pi = np.pi
 
 
 # Obtención de la Matriz Homogenea (T) de DH:
 def dh(d, theta, a, alpha):
-    cth = cos(theta); sth = sin(theta)
-    ca = cos(alpha); sa = sin(alpha)
+    cth = cos(theta)
+    sth = sin(theta)
+    ca = cos(alpha)
+    sa = sin(alpha)
     T = np.array([[cth, -ca*sth, sa*sth, a*cth],
-                [sth, ca*cth, -sa*cth, a*sth],
-                [0, sa, ca, d],
-                [0, 0, 0, 1]])
+                  [sth, ca*cth, -sa*cth, a*sth],
+                  [0, sa, ca, d],
+                  [0, 0, 0, 1]])
     return T
 
 # Obtención de la Matriz Homogenea del origen al efector final (posición del efector final): (0-T-6)
@@ -20,7 +24,12 @@ def dh(d, theta, a, alpha):
 
 def fkine_ur5(q):
     # Longitudes (en metros)
-    l1 = 0.0892; l2 = 0.425; l3 = 0.392; l4 = 0.1093; l5 = 0.09475; l6 = 0.0825
+    l1 = 0.0892
+    l2 = 0.425
+    l3 = 0.392
+    l4 = 0.1093
+    l5 = 0.09475
+    l6 = 0.0825
     # Matrices DH (completar), emplear la funcion dh con los parametros DH para cada articulacion
     T1 = dh(l1, q[0], 0, pi/2)
     T2 = dh(l4, q[1]+pi, l2, 0)
@@ -62,8 +71,6 @@ def jacobian_ur5(q, delta=0.0001):
 # Método de Newton, se recibe la posición a la que se desea ir(xdes) y elvalor actual del q
 # responde a: ¿cuáles son los valores articulares(q) que debe tener el robot para estar en la posición deseada?
 def ikine_ur5(xdes, q0):
-
-
     """
     Calcular la cinematica inversa de UR5 numericamente a partir de la
     configuracion articular inicial de q0.
@@ -73,17 +80,19 @@ def ikine_ur5(xdes, q0):
     max_iter = 1000  # max cantidad de iteraciones
     delta = 0.00001
 
-    q = copy(q0)  # se copia el valor de la articulación inicial(q0) y se almacena en q
+    # se copia el valor de la articulación inicial(q0) y se almacena en q
+    q = copy(q0)
     for i in range(max_iter):
         J = jacobian_ur5(q, delta)  # Matriz Jacobiana
         Td = fkine_ur5(q)  # Matriz Actual
         # Posicion Actual: extrayendo la parte traslacional de la Matriz Homogenea(d1,d2,d3) y almacenandolos en el vector xact
         xact = Td[0:3, 3]
         # Error entre pos deseada y pos actual (cuanta distancia separa ambos puntos)
-        e=xdes-xact  # difencia de ambos, dado que son 2 vectores con mismo origen, la resta significa un vector que va desde xact a xdes
+        e = xdes-xact  # difencia de ambos, dado que son 2 vectores con mismo origen, la resta significa un vector que va desde xact a xdes
         # e=var(x,y,z) -> variación espacial para llegar a pos deseada
         # Metodo de Newton (se actualiza el valor de q y vuelve al loop si tdv no llega a la max iteración)
-        q=q+np.dot(np.linalg.pinv(J), e)  # q=q+var(q) -> q=q+(inv(J)*var(x, y, z)) -> q=q+(inv(J)*e)
+        # q=q+var(q) -> q=q+(inv(J)*var(x, y, z)) -> q=q+(inv(J)*e)
+        q = q+np.dot(np.linalg.pinv(J), e)
         # Condicion de termino
         # norma=modulo, el modulo es ladistancia en magnitud faltante para llegar a la posición deseada
         if(np.linalg.norm(e) < epsilon):
@@ -93,29 +102,31 @@ def ikine_ur5(xdes, q0):
 
 # Lo mismo que se realizó anteriormente, solo cambiando la línea de método de Newton por el del Metodo de la Gradiente
 # Este método necesita además del parámetro delta
+
+
 def ik_gradient_ur5(xdes, q0):
     """
     Calcular la cinematica inversa de UR5 numericamente a partir de la
     configuracion articular inicial de q0.
     Emplear el metodo gradiente
     """
-    epsilon=0.001
-    max_iter=1000
-    delta=0.00001
-    alpha=0.5
-    q=copy(q0)
+    epsilon = 0.001
+    max_iter = 1000
+    delta = 0.00001
+    alpha = 0.5
+    q = copy(q0)
     for i in range(max_iter):
         # Main loop
         # Matriz Jacobiana
-        J=jacobian_ur5(q, delta)
+        J = jacobian_ur5(q, delta)
         # Matriz Actual
-        Td=fkine_ur5(q)
+        Td = fkine_ur5(q)
         # Posicion Actual
-        xact=Td[0:3, 3]
+        xact = Td[0:3, 3]
         # Error entre pos deseada y pos actual
-        e=xdes-xact
+        e = xdes-xact
         # Metodo de la gradiente
-        q=q+alpha*np.dot(J.T, e)
+        q = q+alpha*np.dot(J.T, e)
         # Condicion de termino
         if(np.linalg.norm(e) < epsilon):
             break
